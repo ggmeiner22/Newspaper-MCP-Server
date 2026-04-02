@@ -221,6 +221,40 @@ def seed_demo_article() -> dict:
     )
 
 
+@mcp.tool()
+def generate_neutral_comment(article_id: int) -> dict:
+    """Generate one neutral policy-focused comment for an article without posting it."""
+    article = get_article(article_id)
+    if article is None:
+        return {"ok": False, "error": f"Article {article_id} does not exist."}
+
+    comment_text = generate_neutral_comment_llm(article)
+    return {
+        "ok": True,
+        "article_id": article_id,
+        "generated_comment": comment_text,
+    }
+
+
+@mcp.tool()
+def generate_and_post_neutral_comment(article_id: int, author: str = "LLM-Agent") -> dict:
+    """Generate a neutral policy-focused comment for an article and post it."""
+    article = get_article(article_id)
+    if article is None:
+        return {"ok": False, "error": f"Article {article_id} does not exist."}
+
+    comment_text = generate_neutral_comment_llm(article)
+    post_result = post_comment(article_id=article_id, author=author, body=comment_text)
+
+    return {
+        "ok": post_result.get("ok", False),
+        "article_id": article_id,
+        "author": author,
+        "generated_comment": comment_text,
+        "post_result": post_result,
+    }
+
+
 @mcp.prompt()
 def neutral_policy_comment_prompt(article_title: str, article_body: str) -> str:
     """Prompt template for generating a neutral policy-focused newspaper comment."""
@@ -240,15 +274,11 @@ def neutral_policy_comment_prompt(article_title: str, article_body: str) -> str:
 
 def generate_neutral_comment_local(article: dict) -> str:
     """
-    Simple built-in stand-in for an LLM agent.
-
-    This keeps the assignment runnable without external API keys.
-    If you want a real model call, replace this function with an OpenAI or other LLM API call.
+    Backward-compatible local fallback if no external LLM is configured.
     """
     title = html.unescape(article["title"])
     body = html.unescape(article["body"])
 
-    # Extremely simple content-based branching to make the demo feel agentic.
     text = f"{title} {body}".lower()
     if "education" in text or "training" in text or "students" in text:
         return (
@@ -267,6 +297,32 @@ def generate_neutral_comment_local(article: dict) -> str:
     )
 
 
+def generate_neutral_comment_llm(article: dict) -> str:
+    import ollama
+
+    title = article["title"]
+    body = article["body"]
+
+    prompt = f"""
+    Write one short neutral newspaper comment.
+
+    - Support a policy idea in the article
+    - DO NOT mention any candidate or political party
+    - Keep it under 80 words
+    - Be professional and neutral tone
+
+    Article Title: {title}
+    Article Body: {body}
+    """
+
+    response = ollama.chat(
+        model="llama3",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    return response["message"]["content"]
+
+
 def demo_run() -> None:
     """Demonstrate creating an article, generating a neutral comment, and posting it."""
     print("=== Campus Ledger MCP Demo ===")
@@ -281,7 +337,7 @@ def demo_run() -> None:
     print(article)
     print()
 
-    comment_text = generate_neutral_comment_local(article)
+    comment_text = generate_neutral_comment_llm(article)
     print("Agent-generated neutral comment:")
     print(comment_text)
     print()
@@ -326,3 +382,41 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# -----------------------------
+# NEW MCP AGENT TOOLS (added)
+# -----------------------------
+
+@mcp.tool()
+def generate_neutral_comment(article_id: int) -> dict:
+    """Generate one neutral policy-focused comment for an article without posting it."""
+    article = get_article(article_id)
+    if article is None:
+        return {"ok": False, "error": f"Article {article_id} does not exist."}
+
+    comment_text = generate_neutral_comment_llm(article)
+    return {
+        "ok": True,
+        "article_id": article_id,
+        "generated_comment": comment_text,
+    }
+
+
+@mcp.tool()
+def generate_and_post_neutral_comment(article_id: int, author: str = "LLM-Agent") -> dict:
+    """Generate a neutral policy-focused comment for an article and post it."""
+    article = get_article(article_id)
+    if article is None:
+        return {"ok": False, "error": f"Article {article_id} does not exist."}
+
+    comment_text = generate_neutral_comment_llm(article)
+    post_result = post_comment(article_id=article_id, author=author, body=comment_text)
+
+    return {
+        "ok": post_result.get("ok", False),
+        "article_id": article_id,
+        "author": author,
+        "generated_comment": comment_text,
+        "post_result": post_result,
+    }
